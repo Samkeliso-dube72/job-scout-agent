@@ -26,13 +26,29 @@ class SmartJobScout:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
     
+    def is_entry_level(self, text):
+        """Check if job is entry-level"""
+        if not text:
+            return False
+        text_lower = text.lower()
+        entry_keywords = ['junior', 'entry', 'entry-level', 'entry level', 'early career', '0-2', '1-2 years', 'graduate', 'fresher', 'starter', 'no experience', 'new grad']
+        return any(keyword in text_lower for keyword in entry_keywords)
+    
+    def is_remote(self, text):
+        """Check if job is remote"""
+        if not text:
+            return False
+        text_lower = text.lower()
+        remote_keywords = ['remote', '100% remote', 'work from home', 'wfh', 'anywhere', 'distributed']
+        return any(keyword in text_lower for keyword in remote_keywords)
+    
     def scrape_github_jobs(self):
         """GitHub Jobs API - Real tech jobs with direct links"""
-        print("[GitHub Jobs API - Real jobs...]")
+        print("[GitHub Jobs API - Real entry-level remote jobs...]")
         try:
             url = "https://jobs.github.com/positions.json"
             params = {
-                'description': 'devops OR sre OR cloud OR infrastructure',
+                'description': 'junior OR entry OR devops OR sre OR cloud OR infrastructure',
                 'location': 'remote',
                 'full_time': 'true'
             }
@@ -43,37 +59,40 @@ class SmartJobScout:
                 jobs = response.json()
                 added = 0
                 
-                for job in jobs[:20]:
+                for job in jobs[:30]:
                     try:
                         title = job.get('title', '')
                         company = job.get('company', 'Unknown')
                         url_direct = job.get('url', '')
                         location = job.get('location', '')
+                        description = job.get('description', '')
                         
-                        if url_direct and 'remote' in location.lower():
-                            if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform']):
-                                self.jobs_found.append({
-                                    'title': title,
-                                    'company': company,
-                                    'platform': 'GitHub Jobs',
-                                    'url': url_direct,
-                                    'posted': job.get('created_at', datetime.now().strftime('%Y-%m-%d')),
-                                    'salary': 'Check company site',
-                                    'competition': 'MEDIUM',
-                                    'note': 'Real job listing - direct link!'
-                                })
-                                added += 1
-                                print(f"  ✓ {title[:55]}...")
+                        # Check ALL conditions: remote + entry-level + relevant role
+                        if url_direct and self.is_remote(location):
+                            if self.is_entry_level(title + ' ' + description):
+                                if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
+                                    self.jobs_found.append({
+                                        'title': title,
+                                        'company': company,
+                                        'platform': 'GitHub Jobs',
+                                        'url': url_direct,
+                                        'posted': job.get('created_at', datetime.now().strftime('%Y-%m-%d')),
+                                        'salary': 'Check company site',
+                                        'competition': 'MEDIUM',
+                                        'note': 'Real job listing - entry-level remote!'
+                                    })
+                                    added += 1
+                                    print(f"  ✓ {title[:55]}...")
                     except:
                         pass
                 
-                print(f"  ✅ Added {added} real jobs")
+                print(f"  ✅ Added {added} entry-level remote jobs")
         except Exception as e:
             print(f"  ⚠️  Error: {str(e)[:40]}")
     
     def scrape_remoteok(self):
-        """RemoteOK API - Real remote jobs with direct links"""
-        print("[RemoteOK - Real remote jobs...]")
+        """RemoteOK API - Real entry-level remote jobs with direct links"""
+        print("[RemoteOK - Real entry-level remote jobs...]")
         try:
             url = "https://remoteok.io/api/jobs"
             
@@ -83,36 +102,39 @@ class SmartJobScout:
                 jobs = response.json()
                 added = 0
                 
-                for job in jobs[1:50]:
+                for job in jobs[1:70]:
                     try:
                         if isinstance(job, dict) and 'url' in job:
                             title = job.get('title', '')
                             company = job.get('company', 'Unknown')
                             url_direct = job.get('url', '')
+                            description = job.get('description', '')
                             
-                            if url_direct and any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform']):
-                                self.jobs_found.append({
-                                    'title': title,
-                                    'company': company,
-                                    'platform': 'RemoteOK',
-                                    'url': url_direct,
-                                    'posted': job.get('pubDate', datetime.now().strftime('%Y-%m-%d')),
-                                    'salary': job.get('salary', 'Check site'),
-                                    'competition': 'LOW',
-                                    'note': 'Real job listing - direct link!'
-                                })
-                                added += 1
-                                print(f"  ✓ {title[:55]}...")
+                            # Check: entry-level + remote + relevant role
+                            if url_direct and self.is_entry_level(title + ' ' + description):
+                                if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
+                                    self.jobs_found.append({
+                                        'title': title,
+                                        'company': company,
+                                        'platform': 'RemoteOK',
+                                        'url': url_direct,
+                                        'posted': job.get('pubDate', datetime.now().strftime('%Y-%m-%d')),
+                                        'salary': job.get('salary', 'Check site'),
+                                        'competition': 'LOW',
+                                        'note': 'Real job listing - entry-level remote!'
+                                    })
+                                    added += 1
+                                    print(f"  ✓ {title[:55]}...")
                     except:
                         pass
                 
-                print(f"  ✅ Added {added} real jobs")
+                print(f"  ✅ Added {added} entry-level remote jobs")
         except Exception as e:
             print(f"  ⚠️  Error: {str(e)[:40]}")
     
     def scrape_wellfound(self):
-        """Wellfound API - Real startup jobs"""
-        print("[Wellfound - Real startup jobs...]")
+        """Wellfound API - Real entry-level startup jobs"""
+        print("[Wellfound - Real entry-level startup jobs...]")
         try:
             url = "https://api.wellfound.com/public/api/v2/roles"
             params = {
@@ -129,29 +151,33 @@ class SmartJobScout:
                 added = 0
                 
                 if 'roles' in data:
-                    for job in data['roles'][:20]:
+                    for job in data['roles'][:30]:
                         try:
                             title = job.get('title', '')
                             company = job.get('startup', {}).get('name', 'Unknown')
                             url_direct = job.get('url', '')
+                            description = job.get('description', '')
                             
-                            if url_direct and title and any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform']):
-                                self.jobs_found.append({
-                                    'title': title,
-                                    'company': company,
-                                    'platform': 'Wellfound',
-                                    'url': url_direct,
-                                    'posted': datetime.now().strftime('%Y-%m-%d'),
-                                    'salary': 'See job details',
-                                    'competition': 'LOW',
-                                    'note': 'Startup job - equity potential!'
-                                })
-                                added += 1
-                                print(f"  ✓ {title[:55]}...")
+                            # Check: entry-level + relevant role
+                            if url_direct and title:
+                                if self.is_entry_level(title + ' ' + description):
+                                    if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
+                                        self.jobs_found.append({
+                                            'title': title,
+                                            'company': company,
+                                            'platform': 'Wellfound',
+                                            'url': url_direct,
+                                            'posted': datetime.now().strftime('%Y-%m-%d'),
+                                            'salary': 'See job details',
+                                            'competition': 'LOW',
+                                            'note': 'Entry-level startup - equity potential!'
+                                        })
+                                        added += 1
+                                        print(f"  ✓ {title[:55]}...")
                         except:
                             pass
                 
-                print(f"  ✅ Added {added} real jobs")
+                print(f"  ✅ Added {added} entry-level remote jobs")
         except Exception as e:
             print(f"  ⚠️  Error: {str(e)[:40]}")
     
