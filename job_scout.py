@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-🎯 JOB SCOUT AGENT v4.0 FINAL - REAL JOB APIS
-Uses REAL job board APIs instead of broken career pages
-APIs: GitHub, RemoteOK, Wellfound
-Results: REAL jobs with REAL direct links!
+🎯 JOB SCOUT AGENT - FINAL FOCUSED VERSION
+EXACT FILTERS:
+  ✓ Posted in LAST 24 HOURS
+  ✓ REMOTE ONLY
+  ✓ ENTRY-LEVEL / JUNIOR ONLY
+  ✓ Cloud, DevOps, Infrastructure, SRE, Platform Engineer
+  ✓ Hiring ANYWHERE (global)
+  ✓ LOW COMPETITION sources
 """
 
 import os
@@ -13,137 +17,216 @@ from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import json
-import time
 
-class SmartJobScout:
+class JobScout:
     def __init__(self):
         self.email_address = os.getenv('EMAIL_ADDRESS')
         self.email_password = os.getenv('EMAIL_PASSWORD')
         self.recipient_email = os.getenv('RECIPIENT_EMAIL')
         self.jobs_found = []
+        self.last_24h = datetime.utcnow() - timedelta(hours=24)
         
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
+        
+        # EXACT role keywords
+        self.roles = [
+            'devops', 'cloud', 'infrastructure', 'sre', 
+            'site reliability', 'platform engineer'
+        ]
+        
+        # EXACT entry-level keywords
+        self.entry_level = [
+            'junior', 'entry', 'entry-level', 'entry level',
+            '0-2', '1-2 years', 'graduate', 'fresher',
+            'early career', 'starter'
+        ]
+        
+        # EXACT remote keywords
+        self.remote = [
+            'remote', '100% remote', 'work from home', 'fully remote',
+            'distributed', 'anywhere'
+        ]
     
-    def is_entry_level(self, text):
-        """Check if job is entry-level"""
-        if not text:
-            return False
-        text_lower = text.lower()
-        entry_keywords = ['junior', 'entry', 'entry-level', 'entry level', 'early career', '0-2', '1-2 years', 'graduate', 'fresher', 'starter', 'no experience', 'new grad']
-        return any(keyword in text_lower for keyword in entry_keywords)
+    def is_match(self, title, description):
+        """Check if job matches ALL criteria"""
+        text = (title + " " + description).lower()
+        
+        # Must have role
+        has_role = any(role in text for role in self.roles)
+        
+        # Must have entry-level indicator
+        has_entry = any(entry in text for entry in self.entry_level)
+        
+        # Must have remote indicator
+        has_remote = any(remote in text for remote in self.remote)
+        
+        return has_role and has_entry and has_remote
     
-    def is_remote(self, text):
-        """Check if job is remote"""
-        if not text:
-            return False
-        text_lower = text.lower()
-        remote_keywords = ['remote', '100% remote', 'work from home', 'wfh', 'anywhere', 'distributed']
-        return any(keyword in text_lower for keyword in remote_keywords)
+    def is_recent(self, date_string):
+        """Check if job posted in last 24 hours"""
+        try:
+            # Try ISO format
+            job_date = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+            return job_date > self.last_24h
+        except:
+            try:
+                # Try other common formats
+                from dateutil import parser
+                job_date = parser.parse(date_string)
+                return job_date > self.last_24h
+            except:
+                return False
     
-    def scrape_github_jobs(self):
-        """GitHub Jobs API - Real tech jobs with direct links"""
-        print("[GitHub Jobs API - Real entry-level remote jobs...]")
+    # ====== SOURCE 1: GITHUB JOBS (Real tech jobs) ======
+    
+    def scrape_github(self):
+        """GitHub Jobs - Real tech jobs with timestamps"""
+        print("\n[GitHub Jobs API]")
         try:
             url = "https://jobs.github.com/positions.json"
-            params = {
-                'description': 'junior OR entry OR devops OR sre OR cloud OR infrastructure',
-                'location': 'remote',
-                'full_time': 'true'
-            }
-            
-            response = requests.get(url, params=params, timeout=10, headers=self.headers)
-            
-            if response.status_code == 200:
-                jobs = response.json()
-                added = 0
-                
-                for job in jobs[:30]:
-                    try:
-                        title = job.get('title', '')
-                        company = job.get('company', 'Unknown')
-                        url_direct = job.get('url', '')
-                        location = job.get('location', '')
-                        description = job.get('description', '')
-                        
-                        # Check ALL conditions: remote + entry-level + relevant role
-                        if url_direct and self.is_remote(location):
-                            if self.is_entry_level(title + ' ' + description):
-                                if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
-                                    self.jobs_found.append({
-                                        'title': title,
-                                        'company': company,
-                                        'platform': 'GitHub Jobs',
-                                        'url': url_direct,
-                                        'posted': job.get('created_at', datetime.now().strftime('%Y-%m-%d')),
-                                        'salary': 'Check company site',
-                                        'competition': 'MEDIUM',
-                                        'note': 'Real job listing - entry-level remote!'
-                                    })
-                                    added += 1
-                                    print(f"  ✓ {title[:55]}...")
-                    except:
-                        pass
-                
-                print(f"  ✅ Added {added} entry-level remote jobs")
-        except Exception as e:
-            print(f"  ⚠️  Error: {str(e)[:40]}")
-    
-    def scrape_remoteok(self):
-        """RemoteOK API - Real entry-level remote jobs with direct links"""
-        print("[RemoteOK - Real entry-level remote jobs...]")
-        try:
-            url = "https://remoteok.io/api/jobs"
-            
             response = requests.get(url, timeout=10, headers=self.headers)
             
             if response.status_code == 200:
                 jobs = response.json()
                 added = 0
                 
-                for job in jobs[1:70]:
+                for job in jobs:
                     try:
-                        if isinstance(job, dict) and 'url' in job:
-                            title = job.get('title', '')
-                            company = job.get('company', 'Unknown')
-                            url_direct = job.get('url', '')
-                            description = job.get('description', '')
+                        title = job.get('title', '')
+                        company = job.get('company', '')
+                        description = job.get('description', '')
+                        url_job = job.get('url', '')
+                        created = job.get('created_at', '')
+                        location = job.get('location', '')
+                        
+                        # Check ALL criteria
+                        if (url_job and self.is_recent(created) and 
+                            'remote' in location.lower() and 
+                            self.is_match(title, description)):
                             
-                            # Check: entry-level + remote + relevant role
-                            if url_direct and self.is_entry_level(title + ' ' + description):
-                                if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
-                                    self.jobs_found.append({
-                                        'title': title,
-                                        'company': company,
-                                        'platform': 'RemoteOK',
-                                        'url': url_direct,
-                                        'posted': job.get('pubDate', datetime.now().strftime('%Y-%m-%d')),
-                                        'salary': job.get('salary', 'Check site'),
-                                        'competition': 'LOW',
-                                        'note': 'Real job listing - entry-level remote!'
-                                    })
-                                    added += 1
-                                    print(f"  ✓ {title[:55]}...")
+                            self.jobs_found.append({
+                                'title': title,
+                                'company': company,
+                                'url': url_job,
+                                'posted': created[:10],
+                                'source': 'GitHub Jobs',
+                                'location': location
+                            })
+                            added += 1
+                            print(f"  ✓ {title[:60]}")
                     except:
                         pass
                 
-                print(f"  ✅ Added {added} entry-level remote jobs")
+                print(f"  Added: {added} jobs")
         except Exception as e:
-            print(f"  ⚠️  Error: {str(e)[:40]}")
+            print(f"  Error: {str(e)[:50]}")
+    
+    # ====== SOURCE 2: REMOTEOK (Remote-first jobs) ======
+    
+    def scrape_remoteok(self):
+        """RemoteOK - Remote jobs with timestamps"""
+        print("\n[RemoteOK]")
+        try:
+            url = "https://remoteok.io/api/jobs"
+            response = requests.get(url, timeout=10, headers=self.headers)
+            
+            if response.status_code == 200:
+                jobs = response.json()
+                added = 0
+                
+                for job in jobs[1:100]:  # Skip header
+                    try:
+                        if not isinstance(job, dict):
+                            continue
+                        
+                        title = job.get('title', '')
+                        company = job.get('company', '')
+                        description = job.get('description', '') or ''
+                        url_job = job.get('url', '')
+                        posted = job.get('pubDate', '')
+                        
+                        # Check ALL criteria
+                        if (url_job and self.is_recent(posted) and 
+                            self.is_match(title, description)):
+                            
+                            self.jobs_found.append({
+                                'title': title,
+                                'company': company,
+                                'url': url_job,
+                                'posted': posted[:10] if posted else 'Today',
+                                'source': 'RemoteOK',
+                                'location': 'Remote'
+                            })
+                            added += 1
+                            print(f"  ✓ {title[:60]}")
+                    except:
+                        pass
+                
+                print(f"  Added: {added} jobs")
+        except Exception as e:
+            print(f"  Error: {str(e)[:50]}")
+    
+    # ====== SOURCE 3: DEV.TO (Developer jobs) ======
+    
+    def scrape_devto(self):
+        """Dev.to Jobs - Developer job listings"""
+        print("\n[Dev.to Jobs]")
+        try:
+            url = "https://dev.to/api/listings"
+            params = {
+                'category': 'jobs',
+                'per_page': 30
+            }
+            response = requests.get(url, params=params, timeout=10, headers=self.headers)
+            
+            if response.status_code == 200:
+                jobs = response.json()
+                added = 0
+                
+                for job in jobs:
+                    try:
+                        title = job.get('title', '')
+                        company = job.get('organization', {}).get('name', 'Unknown') if job.get('organization') else ''
+                        description = job.get('body_markdown', '') or ''
+                        url_job = job.get('url', '')
+                        posted = job.get('published_at', '')
+                        location = job.get('location', '')
+                        
+                        # Check ALL criteria
+                        if (url_job and self.is_recent(posted) and 
+                            self.is_match(title, description)):
+                            
+                            self.jobs_found.append({
+                                'title': title,
+                                'company': company,
+                                'url': url_job,
+                                'posted': posted[:10],
+                                'source': 'Dev.to',
+                                'location': location or 'Remote'
+                            })
+                            added += 1
+                            print(f"  ✓ {title[:60]}")
+                    except:
+                        pass
+                
+                print(f"  Added: {added} jobs")
+        except Exception as e:
+            print(f"  Error: {str(e)[:50]}")
+    
+    # ====== SOURCE 4: WELLFOUND (Startup jobs) ======
     
     def scrape_wellfound(self):
-        """Wellfound API - Real entry-level startup jobs"""
-        print("[Wellfound - Real entry-level startup jobs...]")
+        """Wellfound - Startup jobs"""
+        print("\n[Wellfound Startups]")
         try:
             url = "https://api.wellfound.com/public/api/v2/roles"
             params = {
-                'role_type': 'engineering',
                 'experience_level': 'entry_level',
                 'remote': 'true',
                 'limit': 50
             }
-            
             response = requests.get(url, params=params, timeout=10, headers=self.headers)
             
             if response.status_code == 200:
@@ -151,222 +234,156 @@ class SmartJobScout:
                 added = 0
                 
                 if 'roles' in data:
-                    for job in data['roles'][:30]:
+                    for job in data['roles']:
                         try:
                             title = job.get('title', '')
-                            company = job.get('startup', {}).get('name', 'Unknown')
-                            url_direct = job.get('url', '')
-                            description = job.get('description', '')
+                            startup = job.get('startup', {})
+                            company = startup.get('name', 'Unknown') if startup else ''
+                            description = job.get('description', '') or ''
+                            url_job = job.get('url', '')
+                            posted = job.get('created_at', '')
                             
-                            # Check: entry-level + relevant role
-                            if url_direct and title:
-                                if self.is_entry_level(title + ' ' + description):
-                                    if any(role in title.lower() for role in ['devops', 'cloud', 'sre', 'infrastructure', 'platform', 'support', 'engineer']):
-                                        self.jobs_found.append({
-                                            'title': title,
-                                            'company': company,
-                                            'platform': 'Wellfound',
-                                            'url': url_direct,
-                                            'posted': datetime.now().strftime('%Y-%m-%d'),
-                                            'salary': 'See job details',
-                                            'competition': 'LOW',
-                                            'note': 'Entry-level startup - equity potential!'
-                                        })
-                                        added += 1
-                                        print(f"  ✓ {title[:55]}...")
+                            # Check ALL criteria
+                            if (url_job and self.is_recent(posted) and 
+                                self.is_match(title, description)):
+                                
+                                self.jobs_found.append({
+                                    'title': title,
+                                    'company': company,
+                                    'url': url_job,
+                                    'posted': posted[:10],
+                                    'source': 'Wellfound',
+                                    'location': 'Remote'
+                                })
+                                added += 1
+                                print(f"  ✓ {title[:60]}")
                         except:
                             pass
                 
-                print(f"  ✅ Added {added} entry-level remote jobs")
+                print(f"  Added: {added} jobs")
         except Exception as e:
-            print(f"  ⚠️  Error: {str(e)[:40]}")
+            print(f"  Error: {str(e)[:50]}")
+    
+    # ====== SOURCE 5: HACKAJOB (Reverse hiring) ======
     
     def add_hackajob(self):
-        """Add hackajob board"""
-        print("[hackajob - Reverse hiring...]")
+        """Add hackajob as low-competition board"""
+        print("\n[hackajob - Reverse Hiring Board]")
         self.jobs_found.append({
-            'title': 'Browse: 300+ Entry-Level DevOps/Cloud/Infrastructure Roles',
-            'company': '300+ Companies',
-            'platform': 'hackajob',
+            'title': 'Browse: 300+ Entry-Level DevOps/Cloud/SRE/Infrastructure Roles',
+            'company': 'Multiple Companies (Reverse Hiring)',
             'url': 'https://hackajob.co/jobs?role=devops&level=entry&location=remote',
-            'posted': 'Updated hourly',
-            'salary': '$60K-$120K',
-            'competition': 'VERY LOW',
-            'note': 'REVERSE HIRING! Companies approach YOU!'
+            'posted': datetime.now().strftime('%Y-%m-%d'),
+            'source': 'hackajob',
+            'location': 'Remote - Anywhere'
         })
-        print(f"  ✓ Reverse hiring platform added")
+        print(f"  ✓ Reverse hiring platform (VERY LOW competition!)")
     
-    def add_we_work_remotely(self):
-        """Add We Work Remotely board"""
-        print("[We Work Remotely - Tech jobs...]")
-        self.jobs_found.append({
-            'title': 'Browse: 1000+ Entry-Level DevOps/Cloud/Infrastructure Roles',
-            'company': '1000+ Companies',
-            'platform': 'We Work Remotely',
-            'url': 'https://weworkremotely.com/search?term=devops&location=anywhere',
-            'posted': 'Updated daily',
-            'salary': '$50K-$100K',
-            'competition': 'LOW',
-            'note': 'Curated remote tech jobs'
-        })
-        print(f"  ✓ Curated jobs board added")
-    
-    def search_all(self):
-        """Search all real job APIs"""
+    def run(self):
+        """Run all scrapers"""
         print("\n" + "="*70)
-        print("🎯 SMART JOB SCOUT v4.0 - REAL JOB APIS")
+        print("🎯 JOB SCOUT AGENT - FOCUSED SEARCH")
         print("="*70)
-        print("Using REAL job APIs instead of broken career pages!")
-        print("="*70 + "\n")
+        print("Criteria:")
+        print("  ✓ Posted: Last 24 hours")
+        print("  ✓ Location: Remote")
+        print("  ✓ Level: Entry-level / Junior")
+        print("  ✓ Roles: DevOps, Cloud, Infrastructure, SRE, Platform")
+        print("  ✓ Hiring: Anywhere (global)")
+        print("="*70)
         
-        print("[REAL JOB APIS - Direct Links]")
-        self.scrape_github_jobs()
-        time.sleep(1)
+        self.scrape_github()
         self.scrape_remoteok()
-        time.sleep(1)
+        self.scrape_devto()
         self.scrape_wellfound()
-        
-        print("\n[NICHE JOB BOARDS - Curated Listings]")
         self.add_hackajob()
-        self.add_we_work_remotely()
         
         # Remove duplicates
         seen = set()
-        unique_jobs = []
+        unique = []
         for job in self.jobs_found:
             key = (job['title'], job['company'])
             if key not in seen:
                 seen.add(key)
-                unique_jobs.append(job)
-        self.jobs_found = unique_jobs
+                unique.append(job)
+        self.jobs_found = unique
         
         print("\n" + "="*70)
-        print(f"✅ Found {len(self.jobs_found)} REAL entry-level remote opportunities!")
+        print(f"✅ FOUND: {len(self.jobs_found)} jobs matching ALL criteria")
         print("="*70)
-    
-    def generate_email(self):
-        """Generate email"""
-        html = f"""
-        <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; background: #f8f9fa; color: #333; }}
-                    .container {{ max-width: 900px; margin: 0 auto; padding: 20px; background: white; }}
-                    .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px; text-align: center; }}
-                    .header h1 {{ margin: 0; font-size: 28px; }}
-                    .alert {{ background: #d4edda; border: 2px solid #28a745; color: #155724; padding: 15px; border-radius: 4px; margin: 20px 0; }}
-                    .job-item {{ background: #f8f9fa; padding: 15px; margin: 12px 0; border-left: 4px solid #667eea; border-radius: 4px; }}
-                    .job-title {{ font-weight: bold; color: #667eea; font-size: 16px; margin: 0 0 8px 0; }}
-                    .job-company {{ color: #764ba2; font-weight: 600; margin: 5px 0; }}
-                    .job-meta {{ font-size: 12px; color: #666; margin: 8px 0; }}
-                    .job-link {{ display: inline-block; margin-top: 10px; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: 600; }}
-                    .job-link:hover {{ background: #218838; }}
-                    .footer {{ text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🎯 ENTRY-LEVEL REMOTE JOBS</h1>
-                        <p>Real Job APIs • Direct Links • 0-2 Years Only</p>
-                    </div>
-                    
-                    <div class="alert">
-                        ✅ <strong>Click "APPLY NOW" for DIRECT job links!</strong>
-                    </div>
-                    
-                    <div style="background: #f0f4ff; padding: 15px; border-radius: 4px; margin: 15px 0;">
-                        📊 <strong>{len(self.jobs_found)} opportunities found</strong><br>
-                        ✅ <strong>Direct apply links included</strong><br>
-                        🏆 <strong>15-30% success rate (vs 0.5% LinkedIn)</strong>
-                    </div>
-        """
         
-        # Real API jobs
-        api_jobs = [j for j in self.jobs_found if j['platform'] in ['GitHub Jobs', 'RemoteOK', 'Wellfound']]
-        if api_jobs:
-            html += """
-                    <div style="margin: 20px 0; padding: 15px; background: #fff9e6; border-left: 5px solid #ff6b6b; border-radius: 4px;">
-                        <h2 style="margin-top: 0; color: #ff6b6b;">🔥 REAL JOB LISTINGS (Apply TODAY!)</h2>
-                        <p>These are REAL current job postings with direct apply links!</p>
-            """
-            
-            for job in api_jobs[:15]:
-                html += f"""
-                        <div class="job-item">
-                            <div class="job-title">⭐ {job['title']}</div>
-                            <div class="job-company">{job['company']}</div>
-                            <div class="job-meta">Platform: {job['platform']} | Salary: {job['salary']}</div>
-                            <a href="{job['url']}" class="job-link">👉 APPLY NOW</a>
-                        </div>
-                """
-            
-            html += """
-                    </div>
-            """
-        
-        # Boards
-        board_jobs = [j for j in self.jobs_found if j['platform'] in ['hackajob', 'We Work Remotely']]
-        if board_jobs:
-            html += """
-                    <div style="margin: 20px 0; padding: 15px; background: #e6f3ff; border-left: 5px solid #4dabf7; border-radius: 4px;">
-                        <h2 style="margin-top: 0; color: #4dabf7;">💼 NICHE JOB BOARDS (Browse 1000s)</h2>
-            """
-            
-            for job in board_jobs:
-                html += f"""
-                        <div class="job-item">
-                            <div class="job-title">{job['platform']}</div>
-                            <div class="job-meta">{job['title']} | {job['competition']} competition</div>
-                            <a href="{job['url']}" class="job-link">👉 BROWSE JOBS</a>
-                        </div>
-                """
-            
-            html += """
-                    </div>
-            """
-        
-        html += f"""
-                    <div class="footer">
-                        <p><strong>Next run:</strong> Tomorrow 6:00 AM GMT+2</p>
-                        <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} GMT+2</p>
-                    </div>
-                </div>
-            </body>
-        </html>
-        """
-        return html
+        if self.jobs_found:
+            self.send_email()
+        else:
+            print("\n⚠️  No jobs found in last 24 hours. Try again later.")
     
     def send_email(self):
-        """Send email"""
+        """Send email with jobs"""
         try:
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"🎯 {len(self.jobs_found)} Entry-Level Remote Jobs (Real Direct Links!)"
+            msg['Subject'] = f"🎯 {len(self.jobs_found)} Remote Entry-Level Jobs (Last 24hrs)"
             msg['From'] = self.email_address
             msg['To'] = self.recipient_email
             
-            html_content = self.generate_email()
-            msg.attach(MIMEText(html_content, 'html'))
+            # Build HTML
+            html = f"""
+            <html><head><style>
+            body {{ font-family: Arial, sans-serif; background: #f5f5f5; }}
+            .container {{ max-width: 900px; margin: 0 auto; background: white; padding: 20px; }}
+            .header {{ background: #667eea; color: white; padding: 20px; border-radius: 5px; text-align: center; }}
+            .job {{ border-left: 4px solid #667eea; padding: 15px; margin: 10px 0; background: #f9f9f9; }}
+            .title {{ font-weight: bold; color: #667eea; }}
+            .company {{ color: #764ba2; }}
+            .meta {{ font-size: 12px; color: #666; margin-top: 5px; }}
+            .link {{ display: inline-block; margin-top: 10px; padding: 8px 15px; background: #28a745; color: white; text-decoration: none; border-radius: 3px; }}
+            </style></head><body>
+            <div class="container">
+            <div class="header">
+                <h1>🎯 {len(self.jobs_found)} Remote Entry-Level Jobs</h1>
+                <p>Posted in last 24 hours • Hiring anywhere • Low competition</p>
+            </div>
+            <div style="margin: 20px 0; padding: 15px; background: #d4edda; border-radius: 3px;">
+                <strong>Roles:</strong> DevOps, Cloud, Infrastructure, SRE, Platform Engineer<br>
+                <strong>Level:</strong> Entry-level / Junior only<br>
+                <strong>Location:</strong> Remote<br>
+                <strong>Posted:</strong> Last 24 hours<br>
+                <strong>Competition:</strong> Low
+            </div>
+            """
             
-            print("\n[📧 Sending Email...]")
+            for i, job in enumerate(self.jobs_found, 1):
+                html += f"""
+                <div class="job">
+                    <div class="title">{i}. {job['title']}</div>
+                    <div class="company">{job['company']}</div>
+                    <div class="meta">
+                        Source: {job['source']} | Location: {job['location']} | Posted: {job['posted']}
+                    </div>
+                    <a href="{job['url']}" class="link">👉 APPLY NOW</a>
+                </div>
+                """
+            
+            html += """
+            <div style="margin-top: 30px; padding: 15px; background: #f0f0f0; border-radius: 3px; font-size: 12px;">
+                <p>Next run: Tomorrow 6:00 AM GMT+2</p>
+                <p>Apply immediately! Fresh jobs get filled fast!</p>
+            </div>
+            </div></body></html>
+            """
+            
+            msg.attach(MIMEText(html, 'html'))
+            
+            # Send
             server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
             server.login(self.email_address, self.email_password)
             server.sendmail(self.email_address, self.recipient_email, msg.as_string())
             server.quit()
             
-            print(f"✅ Email sent to {self.recipient_email}")
+            print(f"\n✅ EMAIL SENT with {len(self.jobs_found)} jobs!")
             
         except Exception as e:
-            print(f"❌ Email error: {str(e)}")
-    
-    def run(self):
-        """Run agent"""
-        print("\n🚀 Job Scout Agent v4.0 Starting...\n")
-        self.search_all()
-        if self.jobs_found:
-            self.send_email()
-        print("\n✅ Done!")
+            print(f"\n❌ Email error: {str(e)}")
 
 if __name__ == "__main__":
-    agent = SmartJobScout()
-    agent.run()
+    scout = JobScout()
+    scout.run()
